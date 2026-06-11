@@ -1,22 +1,34 @@
 name: worldcup-sync
 on:
   schedule:
-    # tournament match windows, UTC (June 11 – July 19, 2026); earliest kickoff
-    # ~15:00 UTC, latest ends ~05:00 UTC. Two ranges because cron can't wrap.
-    - cron: '*/15 15-23 * 6,7 *'
-    - cron: '*/15 0-4 * 6,7 *'
+    # Trigger exactly at the start of every hour during match windows
+    - cron: '0 15-23 * 6,7 *'
+    - cron: '0 0-4 * 6,7 *'
   workflow_dispatch: {}
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 65 # Safe cushion to allow a full hour run
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - run: python sync-live.py
+      - name: Continuous live sync loop
+        run: |
+          python -c "
+          import time, subprocess
+          start_time = time.time()
+          
+          # Run for 55 minutes, then exit cleanly before the next hour's cron container spawns
+          while time.time() - start_time < 3300:
+              print('Triggering live sync...')
+              subprocess.run(['python', 'sync-live.py'])
+              
+              print('Sleeping for 2 minutes...')
+              time.sleep(120) # Change to 60 for 1-minute tracking, 120 for 2-minute, etc.
+          "
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_SYNC_URL }}
