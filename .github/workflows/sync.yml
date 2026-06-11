@@ -1,0 +1,22 @@
+name: worldcup-sync
+on:
+  schedule:
+    # tournament match windows, UTC (June 11 – July 19, 2026); earliest kickoff
+    # ~15:00 UTC, latest ends ~05:00 UTC. Two ranges because cron can't wrap.
+    - cron: '*/15 15-23 * 6,7 *'
+    - cron: '*/15 0-4 * 6,7 *'
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python sync-live.py
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_SYNC_URL }}
