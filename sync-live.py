@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from db import get_conn
 from fifa_client import (
     STATUS_BY_FIFA, TEAM_CODE_RE,
-    fetch_calendar, fetch_match_detail, fetch_timeline, loc, sane_name,
+    fetch_calendar, fetch_match_detail, fetch_timeline, loc,
+    normalize_caps_name, sane_name,
 )
 
 PREMATCH_WINDOW = timedelta(minutes=75)
@@ -103,7 +104,7 @@ def sync_detail(cur, match_num: int, stage_id: str, match_id: str, id2code: dict
         for p in team.get("Players") or []:
             players.append({
                 "fifa_player_id": p["IdPlayer"], "team_code": code,
-                "name": sane_name(loc(p.get("PlayerName")), "player name") or "Unknown",
+                "name": normalize_caps_name(sane_name(loc(p.get("PlayerName")), "player name")) or "Unknown",
                 "shirt_number": p.get("ShirtNumber"), "position": p.get("Position"),
                 "picture_url": (p.get("PlayerPicture") or {}).get("PictureUrl"),
             })
@@ -157,7 +158,7 @@ def sync_detail(cur, match_num: int, stage_id: str, match_id: str, id2code: dict
             "match_minute": e.get("MatchMinute"), "period": e.get("Period"),
             "ts": e.get("Timestamp"),
             "home_goals": e.get("HomeGoals"), "away_goals": e.get("AwayGoals"),
-            "description": loc(e.get("EventDescription")),
+            "description": normalize_caps_name(loc(e.get("EventDescription"))),
         } for e in events if e.get("EventId")],
     )
 

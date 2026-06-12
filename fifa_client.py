@@ -56,6 +56,32 @@ def sane_name(value, what):
     return value
 
 
+_CAPS_WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+
+def normalize_caps_name(value):
+    """FIFA writes surnames in ALL CAPS — "Matej KOVAR", "Lyle FOSTER (out)".
+
+    Title-case only the all-caps words of 2+ letters, so single initials
+    ("H G OH" keeps H/G), already-mixed words ("McKennie", "van") and
+    surrounding sentence text survive untouched. Accented caps lower
+    correctly via str casing (RAÚL -> Raúl).
+    """
+    if value is None:
+        return None
+
+    def fix(match):
+        word = match.group(0)
+        if len(word) < 2 or not word.isupper():
+            return word
+        lower = word.lower()
+        if lower.startswith("mc") and len(lower) > 2:
+            return "Mc" + lower[2].upper() + lower[3:]
+        return lower[0].upper() + lower[1:]
+
+    return _CAPS_WORD_RE.sub(fix, value).strip()
+
+
 def _get(path: str, params: dict, snapshot: str) -> dict:
     resp = requests.get(f"{BASE}/{path}", params=params, headers=HEADERS, timeout=30)
     resp.raise_for_status()
