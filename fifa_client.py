@@ -80,6 +80,33 @@ def fetch_calendar() -> list[dict]:
     return results
 
 
+def fetch_seasons() -> list[dict]:
+    """All editions of competition 17 (1930 → current). Verified 2026-06-12: 23 seasons."""
+    data = _get(
+        "seasons",
+        {"idCompetition": COMPETITION_ID, "count": 100, "language": "en"},
+        snapshot="seasons.json",
+    )
+    results = data.get("Results") or []
+    if len(results) < 20:
+        raise RuntimeError(f"seasons returned {len(results)} — expected 23+; API shape may have drifted")
+    return results
+
+
+def fetch_season_calendar(season_id: str) -> list[dict]:
+    """Calendar of ANY season. Historical editions are small (1930 = 18 matches)."""
+    data = _get(
+        "calendar/matches",
+        {"idSeason": season_id, "idCompetition": COMPETITION_ID,
+         "language": "en", "count": 500},
+        snapshot=f"calendar-{season_id}.json",
+    )
+    results = data.get("Results") or []
+    if len(results) < 16:
+        raise RuntimeError(f"season {season_id} returned {len(results)} matches — below the smallest edition (16); API shape may have drifted")
+    return results
+
+
 def fetch_match_detail(fifa_stage_id: str, fifa_match_id: str) -> dict:
     """Squads with lineup status + pitch coords, formations, possession."""
     return _get(
