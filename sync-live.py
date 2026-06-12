@@ -91,6 +91,34 @@ def team_code_by_fifa_id(cur) -> dict[str, str]:
     return dict(cur.fetchall())
 
 
+def roster_names(cur) -> dict[str, str]:
+    cur.execute("SELECT fifa_player_id, name FROM wc_players")
+    return dict(cur.fetchall())
+
+
+def event_text(e: dict, names: dict[str, str]):
+    """Compose ticker text from roster full names. FIFA's EventDescription
+    abbreviates players ("H G OH (in) comes off the bench to replace H M SON
+    (out) (Korea Republic)"); IdPlayer/IdSubPlayer resolve to full squad names
+    (IdPlayer = scorer/carded/incoming, IdSubPlayer = outgoing — verified on
+    match 2). Falls back to the normalized FIFA sentence when ids don't
+    resolve (own goals, unknown types, pre-squad events)."""
+    kind = e["Type"]
+    player = names.get(str(e.get("IdPlayer")))
+    sub_out = names.get(str(e.get("IdSubPlayer")))
+    if kind == 0 and player:
+        return f"{player} scores!!"
+    if kind == 41 and player:
+        return f"{player} scores from the spot!!"
+    if kind == 2 and player:
+        return f"{player} is booked."
+    if kind == 3 and player:
+        return f"{player} is sent off!"
+    if kind == 5 and player and sub_out:
+        return f"{player} on for {sub_out}"
+    return normalize_caps_name(loc(e.get("EventDescription")))
+
+
 def sync_detail(cur, match_num: int, stage_id: str, match_id: str, id2code: dict) -> None:
     detail = fetch_match_detail(stage_id, match_id)
     formations, possession = {}, detail.get("BallPossession") or {}
@@ -140,6 +168,7 @@ def sync_detail(cur, match_num: int, stage_id: str, match_id: str, id2code: dict
     )
 
     events = (fetch_timeline(stage_id, match_id).get("Event") or [])
+    names = roster_names(cur)  # full squad names just upserted above (same transaction)
     cur.executemany(
         """INSERT INTO wc_events (event_id, match_num, team_code, fifa_player_id, type,
              type_name, match_minute, period, ts, home_goals, away_goals, description)
@@ -158,7 +187,7 @@ def sync_detail(cur, match_num: int, stage_id: str, match_id: str, id2code: dict
             "match_minute": e.get("MatchMinute"), "period": e.get("Period"),
             "ts": e.get("Timestamp"),
             "home_goals": e.get("HomeGoals"), "away_goals": e.get("AwayGoals"),
-            "description": normalize_caps_name(loc(e.get("EventDescription"))),
+            "description": event_text(e, names),
         } for e in events if e.get("EventId")],
     )
 
