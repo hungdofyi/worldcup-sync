@@ -58,13 +58,23 @@ def upsert_calendar(cur) -> int:
 
 
 def pick_detail_targets(cur) -> list[tuple]:
+    # FT matches stay targets while their event stream disagrees with the scoreboard
+    # (fewer goal events than goals scored, or no events at all). Event upserts are
+    # idempotent, so partial ingests — e.g. a sync outage mid-match — self-heal on the
+    # next run. The 48h bound stops a match with an unmapped goal type code from being
+    # re-fetched for the rest of the tournament.
     now = datetime.now(timezone.utc)
     cur.execute(
         """SELECT m.match_num, m.fifa_stage_id, m.fifa_match_id, m.status, m.kickoff_utc
            FROM wc_matches m
            WHERE m.status = 'LIVE'
-              OR (m.status = 'FT' AND NOT EXISTS
-                    (SELECT 1 FROM wc_events e WHERE e.match_num = m.match_num))
+              OR (m.status = 'FT'
+                  AND m.kickoff_utc > now() - interval '48 hours'
+                  AND ((SELECT count(*) FROM wc_events e
+                         WHERE e.match_num = m.match_num AND e.type IN (0, 41))
+                       < COALESCE(m.home_score, 0) + COALESCE(m.away_score, 0)
+                       OR NOT EXISTS
+                         (SELECT 1 FROM wc_events e WHERE e.match_num = m.match_num)))
               OR (m.status = 'NS' AND m.kickoff_utc BETWEEN %s AND %s)
            ORDER BY m.kickoff_utc""",
         (now - timedelta(minutes=15), now + PREMATCH_WINDOW),
