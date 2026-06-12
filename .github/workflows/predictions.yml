@@ -1,0 +1,21 @@
+name: worldcup-predictions
+on:
+  schedule:
+    # Daily after the last matches finish (~04:00 UTC during the tournament)
+    - cron: '30 6 * 6,7 *'
+  workflow_dispatch: {}
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Update ratings + predictions
+        run: python update-predictions.py
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_SYNC_URL }}

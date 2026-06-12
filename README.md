@@ -29,3 +29,26 @@ stage name with its normalization — eyeball both before loading. The wc_sync
 role cannot run this (no DDL); use an owner connection string, then grant the
 Holistics reporting role SELECT on the four new tables if default privileges
 don't cover them.
+
+## Ratings + predictions (`update-predictions.py`)
+
+Nightly job (predictions.yml, also workflow_dispatch): rolls our own Elo
+(eloratings.net methodology in `elo.py`) over the martj42 all-internationals
+dataset (topped up with FT results from wc_matches the dataset hasn't ingested
+yet), snapshots the 48 teams into `wc_team_ratings`, writes per-match outcome
+probabilities (`wc_match_predictions`) from the fitted Elo→Poisson model in
+`match_model.py`, and Monte-Carlos the remaining tournament 10k times into
+`wc_advance_probs`. Every row carries `run_date` → odds movement is queryable.
+
+```
+python update-predictions.py --init               # first run, OWNER url (DDL + grants)
+python update-predictions.py --backfill-ratings   # adds monthly Elo snapshots since 2024-07
+python update-predictions.py                      # nightly (wc_sync role suffices)
+python backtest-2022.py                           # calibration backtest on Qatar 2022
+```
+
+Model acceptance is enforced by `backtest-2022.py` (honest protocol: params
+fitted strictly pre-Qatar, ratings rolled sequentially): multi-class Brier
+0.626 vs 0.667 uniform; predicted draw rate 23.5% vs realized 23.4%; favorites
+calibrated within sample noise (the ~90% bucket lost both matches — those were
+Argentina–Saudi Arabia-class shocks, n=2).
