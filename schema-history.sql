@@ -60,3 +60,6 @@ CREATE TABLE IF NOT EXISTS wc_history_team_editions (
   champion  boolean,
   PRIMARY KEY (year, team_code)
 );
+
+-- Holistics' data source connects as wc_sync — it needs read access.
+GRANT SELECT ON wc_history_matches, wc_history_editions, wc_team_aliases, wc_history_team_editions TO wc_sync;
