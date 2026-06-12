@@ -22,14 +22,17 @@ PREMATCH_WINDOW = timedelta(minutes=75)
 def upsert_calendar(cur) -> int:
     rows = []
     for m in fetch_calendar():
-        codes = {}
+        codes, id2code = {}, {}
         for side in ("Home", "Away"):
             team = m.get(side)
             code = team.get("Abbreviation") if team and team.get("IdTeam") else None
             if code and not TEAM_CODE_RE.match(code):
                 raise ValueError(f"suspicious team code: {code!r}")
             codes[side] = code
-        winner = m.get("Winner")
+            if code:
+                id2code[str(team.get("IdTeam"))] = code
+        # Winner holds the FIFA IdTeam, not the team code — resolve via this row's teams.
+        winner = id2code.get(str(m.get("Winner")))
         rows.append({
             "match_num": int(m["MatchNumber"]),
             "kickoff_utc": m["Date"],
