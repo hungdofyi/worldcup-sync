@@ -1,15 +1,19 @@
 name: worldcup-sync
 on:
   schedule:
-    # Trigger exactly at the start of every hour during match windows
-    - cron: '0 15-23 * 6,7 *'
-    - cron: '0 0-4 * 6,7 *'
+    # Off-peak minute (:17) dodges top-of-hour GitHub Actions cron delays.
+    # WC2026 kickoffs (UTC, from the FIFA calendar): earliest 16:00, latest
+    # 04:00 (group). Head 14:00 gives the 16:00 matches a pre-match lineup
+    # lead; tail to 06:00 + the 75-min loop overflow (~07:15) covers a
+    # delayed/stoppage-heavy 04:00 group kickoff (worst-case finish ~06:45).
+    - cron: '17 14-23 * 6,7 *'
+    - cron: '17 0-6 * 6,7 *'
   workflow_dispatch: {}
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 65 # Safe cushion to allow a full hour run
+    timeout-minutes: 80 # Cushion for the 75-min overlapping loop
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,9 +25,11 @@ jobs:
           python -c "
           import time, subprocess
           start_time = time.time()
-          
-          # Run for 55 minutes, then exit cleanly before the next hour's cron container spawns
-          while time.time() - start_time < 3300:
+
+          # Run 75 min so consecutive hourly containers OVERLAP (~15 min) rather
+          # than gap. sync-live.py is idempotent, so overlap is harmless; a gap
+          # would leave the live dashboard stale around the top of every hour.
+          while time.time() - start_time < 4500:
               print('Triggering live sync...')
               subprocess.run(['python', 'sync-live.py'])
               

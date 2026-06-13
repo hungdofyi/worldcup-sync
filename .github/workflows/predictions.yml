@@ -1,8 +1,10 @@
 name: worldcup-predictions
 on:
   schedule:
-    # Daily after the last matches finish (~04:00 UTC during the tournament)
-    - cron: '30 6 * 6,7 *'
+    # 08:00 UTC — after the live-sync window fully closes (~07:15), so the
+    # latest-finishing match (04:00 UTC group kickoff) is synced to FT before
+    # the ratings/Monte-Carlo run reads results.
+    - cron: '0 8 * 6,7 *'
   workflow_dispatch: {}
 
 jobs:
